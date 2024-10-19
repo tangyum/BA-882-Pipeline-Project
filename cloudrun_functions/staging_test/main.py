@@ -11,21 +11,11 @@ project_id = 'ba882-435919'
 secret_id = 'motherduck_access_token'
 version_id = '1'
 
-# Filepaths (For testing)
-gcs_links = {
-        'price': 'gs://ba882_team7/jobs/202410182302-cb5565b4-1a3c-428b-9aa3-3034bdb349cf/price.parquet',
-        'actions': 'gs://ba882_team7/jobs/202410182302-cb5565b4-1a3c-428b-9aa3-3034bdb349cf/actions.parquet',
-        'calendar': 'gs://ba882_team7/jobs/202410182302-cb5565b4-1a3c-428b-9aa3-3034bdb349cf/calendar.parquet',
-        'info': 'gs://ba882_team7/jobs/202410182302-cb5565b4-1a3c-428b-9aa3-3034bdb349cf/info.parquet',
-        'news': 'gs://ba882_team7/jobs/202410182302-cb5565b4-1a3c-428b-9aa3-3034bdb349cf/news.parquet',
-        'sec': 'gs://ba882_team7/jobs/202410182302-cb5565b4-1a3c-428b-9aa3-3034bdb349cf/sec.parquet'
-    }
-
-
 # db setup
 db = 'stocks'
 raw_db_schema = f"{db}.raw"
 stage_db_schema = f"{db}.stage"
+stage_tables = {}
 
 ############################################################### main task
 
@@ -33,10 +23,8 @@ stage_db_schema = f"{db}.stage"
 def task(request):
 
     # Parse the request data
-
-    request_json = gcs_links
-    print(f"request: {(request_json)}")
-
+    request_json = request.get_json(silent=True)
+    print(f"request: {json.dumps(request_json)}")
 
     # instantiate the services
     sm = secretmanager.SecretManagerServiceClient()
@@ -100,7 +88,6 @@ def task(request):
 
 
     # create staging table if first time running function
-    md.sql(f"""DROP TABLE IF EXISTS {stage_tbl_name}""") #test
     create_stage = f"""CREATE TABLE IF NOT EXISTS {stage_tbl_name} AS SELECT * from {raw_tbl_name}"""
     print(create_stage)
     md.sql(create_stage)
@@ -120,6 +107,7 @@ def task(request):
     print(f"{stage_tbl_name}")
     print(md.sql(f"SELECT * FROM {stage_tbl_name} LIMIT 5;").show())
     print(md.sql(f"SELECT COUNT(*) FROM {stage_tbl_name};").show())
+    stage_tables.update({f'{tbl_name}':f'{stage_tbl_name}'})
 
         #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tbl: actions
 
@@ -157,7 +145,6 @@ def task(request):
 
 
     # create staging table if first time running function
-    md.sql(f"""DROP TABLE IF EXISTS {stage_tbl_name}""") #test
     create_stage = f"""CREATE TABLE IF NOT EXISTS {stage_tbl_name} AS SELECT * from {raw_tbl_name}"""
     print(create_stage)
     md.sql(create_stage)
@@ -177,6 +164,7 @@ def task(request):
     print(f"{stage_tbl_name}")
     print(md.sql(f"SELECT * FROM {stage_tbl_name} LIMIT 5;").show())
     print(md.sql(f"SELECT COUNT(*) FROM {stage_tbl_name};").show())
+    stage_tables.update({f'{tbl_name}':f'{stage_tbl_name}'})
 
         #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tbl: calendar
 
@@ -210,7 +198,6 @@ def task(request):
 
 
     # create staging table if first time running function
-    md.sql(f"""DROP TABLE IF EXISTS {stage_tbl_name}""") #test
     create_stage = f"""CREATE TABLE IF NOT EXISTS {stage_tbl_name} AS SELECT * from {raw_tbl_name}"""
     print(create_stage)
     md.sql(create_stage)
@@ -230,12 +217,14 @@ def task(request):
     print(f"{stage_tbl_name}")
     print(md.sql(f"SELECT * FROM {stage_tbl_name} LIMIT 5;").show())
     print(md.sql(f"SELECT COUNT(*) FROM {stage_tbl_name};").show())
+    stage_tables.update({f'{tbl_name}':f'{stage_tbl_name}'})
 
         #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tbl: sec
 
     # read in from gcs
     parquet_path = request_json.get('sec')
     parquet_df = pd.read_parquet(parquet_path)
+    parquet_df['exhibits'] = parquet_df['exhibits'].astype('str') # convert struct format to string (this will allow upsert without conflict on struct format)
 
     # table logic
     tbl_name = 'sec'
@@ -263,7 +252,6 @@ def task(request):
 
 
     # create staging table if first time running function
-    md.sql(f"""DROP TABLE IF EXISTS {stage_tbl_name}""") #test
     create_stage = f"""CREATE TABLE IF NOT EXISTS {stage_tbl_name} AS SELECT * from {raw_tbl_name}"""
     print(create_stage)
     md.sql(create_stage)
@@ -283,7 +271,7 @@ def task(request):
     print(f"{stage_tbl_name}")
     print(md.sql(f"SELECT * FROM {stage_tbl_name} LIMIT 5;").show())
     print(md.sql(f"SELECT COUNT(*) FROM {stage_tbl_name};").show())
-
+    stage_tables.update({f'{tbl_name}':f'{stage_tbl_name}'})
         #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tbl: news
 
     # read in from gcs
@@ -317,7 +305,6 @@ def task(request):
 
 
     # create staging table if first time running function
-    md.sql(f"""DROP TABLE IF EXISTS {stage_tbl_name}""") #test
     create_stage = f"""CREATE TABLE IF NOT EXISTS {stage_tbl_name} AS SELECT * from {raw_tbl_name}"""
     print(create_stage)
     md.sql(create_stage)
@@ -337,6 +324,7 @@ def task(request):
     print(f"{stage_tbl_name}")
     print(md.sql(f"SELECT * FROM {stage_tbl_name} LIMIT 5;").show())
     print(md.sql(f"SELECT COUNT(*) FROM {stage_tbl_name};").show())
+    stage_tables.update({f'{tbl_name}':f'{stage_tbl_name}'})
 
         #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tbl: info
 
@@ -371,7 +359,6 @@ def task(request):
 
 
     # create staging table if first time running function
-    md.sql(f"""DROP TABLE IF EXISTS {stage_tbl_name}""") #test
     create_stage = f"""CREATE TABLE IF NOT EXISTS {stage_tbl_name} AS SELECT * from {raw_tbl_name}"""
     print(create_stage)
     md.sql(create_stage)
@@ -391,5 +378,6 @@ def task(request):
     print(f"{stage_tbl_name}")
     print(md.sql(f"SELECT * FROM {stage_tbl_name} LIMIT 5;").show())
     print(md.sql(f"SELECT COUNT(*) FROM {stage_tbl_name};").show())
+    stage_tables.update({f'{tbl_name}':f'{stage_tbl_name}'})
 
-    return {}, 200
+    return {'staging_tables':stage_tables}, 200

@@ -15,6 +15,7 @@ project_id = 'ba882-435919'
 version_id = 'latest'
 bucket_name = 'ba882_team7'
 today = datetime.today().strftime('%Y-%m-%d')
+filepaths = {}
 
 ####################################################### helpers
 
@@ -34,7 +35,8 @@ def upload_to_gcs(bucket_name, job_id, df, file_name):
     # Upload the parquet file
     blob.upload_from_file(parquet_buffer, content_type='application/octet-stream')
     print(f"Parquet file {blob_name} uploaded to {bucket_name}.")
-
+    filepath = {f'{file_name}':f'gs://{bucket_name}/{blob_name}'}
+    return filepath
 
 ####################################################### core task
 
@@ -50,7 +52,7 @@ def task(request):
 
   ## Top 10 US Stocks by market cap
   stocks = ['AAPL', 'NVDA', 'MSFT', 'GOOG', 'AMZN', 'META', 'BRK-B', 'LLY', 'AVGO', 'TSLA']
-  stocks_str = ' '.join(stocks) 
+  stocks_str = ' '.join(stocks)
   tickers = yf.Tickers(stocks_str)
 
   ## Setting range of data
@@ -74,14 +76,16 @@ def task(request):
 
   df_info = pd.concat(df_list)
   df_info['extraction_date'] = today
-  upload_to_gcs(bucket_name, job_id, df_info, file_name='info') # upload file 
+  filepath = upload_to_gcs(bucket_name, job_id, df_info, file_name='info') # upload file
+  filepaths.update(filepath)
   file_counter += 1
 
-  ## get historical price data 
+  ## get historical price data
   df_price = yf.download(stocks, group_by='Ticker', period=period)
   df_price = df_price.stack(level=0).rename_axis(['Date', 'Ticker']).reset_index() # Flatten dataframe
 
-  upload_to_gcs(bucket_name, job_id, df_price, file_name='price') # upload file 
+  filepath = upload_to_gcs(bucket_name, job_id, df_price, file_name='price') # upload file
+  filepaths.update(filepath)
   file_counter += 1
 
   ## Extracting Actions Dividends/Stock Splits
@@ -93,7 +97,8 @@ def task(request):
     df_list.append(temp_df)
 
   df_actions = pd.concat(df_list)
-  upload_to_gcs(bucket_name, job_id, df_actions, file_name='actions') # upload file 
+  filepath = upload_to_gcs(bucket_name, job_id, df_actions, file_name='actions') # upload file
+  filepaths.update(filepath)
   file_counter += 1
 
 
@@ -108,7 +113,8 @@ def task(request):
 
   df_calendar = pd.concat(df_list)
   df_calendar['extraction_date'] = today
-  upload_to_gcs(bucket_name, job_id, df_calendar, file_name='calendar') # upload file 
+  filepath = upload_to_gcs(bucket_name, job_id, df_calendar, file_name='calendar') # upload file
+  filepaths.update(filepath)
   file_counter += 1
 
 
@@ -119,13 +125,14 @@ def task(request):
     if ticker == 'BRK-B':
         tick = yf.Ticker('BRK-A') # this class has SEC filings available
     else:
-      tick = tickers.tickers[ticker] 
+      tick = tickers.tickers[ticker]
     temp_df = pd.DataFrame.from_dict(tick.sec_filings)
     temp_df['Ticker'] = ticker
     df_list.append(temp_df)
 
   df_sec = pd.concat(df_list)
-  upload_to_gcs(bucket_name, job_id, df_sec, file_name='sec') # upload file 
+  filepath = upload_to_gcs(bucket_name, job_id, df_sec, file_name='sec') # upload file
+  filepaths.update(filepath)
   file_counter += 1
 
 
@@ -134,15 +141,18 @@ def task(request):
 
   for ticker in stocks:
 
-    tick = tickers.tickers[ticker] 
+    tick = tickers.tickers[ticker]
     temp_df = pd.DataFrame.from_dict(tick.news)
     temp_df['Ticker'] = ticker
     df_list.append(temp_df)
 
   df_news = pd.concat(df_list)
-  upload_to_gcs(bucket_name, job_id, df_news, file_name='news') # upload file 
+  filepath = upload_to_gcs(bucket_name, job_id, df_news, file_name='news') # upload file
+  filepaths.update(filepath)
   file_counter += 1
-  
+
   return {
-      "num_files": file_counter, 
-      "job_id": job_id}, 200
+      "num_files": file_counter,
+      "job_id": job_id,
+      "bucket_name":bucket_name,
+      "filepaths": filepaths}, 200

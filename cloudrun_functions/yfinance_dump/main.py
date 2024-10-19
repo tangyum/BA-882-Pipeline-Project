@@ -11,9 +11,9 @@ import functions_framework
 
 
 # settings
-project_id = 'rdba882'
+project_id = 'ba882-435919'
 version_id = 'latest'
-bucket_name = 'rdba882_project'
+bucket_name = 'ba882_team7'
 today = datetime.today().strftime('%Y-%m-%d')
 
 ####################################################### helpers

@@ -33,6 +33,14 @@ def staging(payload):
     resp = invoke_gcf(url, payload=payload)
     return resp
 
+
+@task(retries=2)
+def scrape_news(payload):
+    """Process the RSS feed JSON into parquet on GCS"""
+    url = "https://us-central1-ba882-435919.cloudfunctions.net/scrape_news"
+    resp = invoke_gcf(url, payload=payload)
+    return resp
+
 # @task(retries=2)
 # def fetch_motherduck_info(payload):
 #     """Load the tables into the raw schema, ingest new records into stage tables"""
@@ -55,6 +63,12 @@ def etl_flow():
     transform_result = staging(extract_result)
     print("The parsing of the feeds into tables completed")
     print(f"{transform_result}")
+
+    scrape = scrape_news(transform_result)
+    print("The news articles have been scraped")
+    print(f"{scrape}")
+
+
 
     # result = fetch_motherduck_info(transform_result)
     # print("The data were loaded into the raw schema and changes added to stage")

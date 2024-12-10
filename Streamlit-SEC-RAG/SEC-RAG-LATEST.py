@@ -107,7 +107,7 @@ if st.session_state.query_run:
     st.markdown(f'### {st.session_state.tquestion}')
 
     st.subheader("Answer:")
-    st.write({st.session_state.answer})
+    st.markdown(st.session_state.answer)
 
     # Table selection
     table_options = list(st.session_state.table_contents.keys())

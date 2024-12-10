@@ -12,7 +12,7 @@ secret_id = 'motherduck_access_token'
 version_id = '1'
 
 # db setup
-table_old = 'stocks.report.news_with_sentiment'
+table_old = 'stocks.report.news_summarized'
 table_new = 'stocks.report.news_final'
 ############################################################### main task
 
@@ -39,17 +39,14 @@ def task(request):
     
     # Convert date time
     df['datetime'] = df.apply(lambda row: datetime.datetime.fromtimestamp(row.providerPublishTime), axis=1)
-    df = df.rename(columns={'summary':'summary_unparsed', 'bullets':'summary'})
+    df = df.rename(columns={'summary':'summary_unparsed', 'sentiment':'sentiment_ml_score','bullets':'summary'})
     df['summary_unparsed'] = df['summary_unparsed'].apply(lambda sum: sum.replace('*',""))
 
     # Define the fields and their corresponding regex patterns
     field_patterns = {
         'summary': r'(?:summary:)(.*)\n',
         'sentiment_llm': r'(?:sentiment:)(.*)\n',
-        'market_impact': r'(?:market impact:)(.*)(?:\n|$)',
-        'sentiment_ml_label': r"(?:label': )(.{8})(?:,)",
-        'sentiment_ml_score': r"(?:score': )(\d.\d*)(?:,)"
-    }
+        'market_impact': r'(?:market impact:)(.*)(?:\n|$)'}
 
     def extract_field(text, pattern):
         try:
@@ -62,14 +59,7 @@ def task(request):
     for field, pattern in field_patterns.items():
         df[field] = df['summary_unparsed'].apply(lambda x: extract_field(x, pattern))
         df[field] = df[field].str.strip()
-        if field in ['sentiment_ml_label','sentiment_ml_score']: 
-            df[field] = df['sentiment'].apply(lambda x: extract_field(x, pattern))
-            df[field] = df[field].str.strip()
 
-
-    # Correct the column format and type
-    df.sentiment_llm = df.sentiment_llm.str.upper()
-    df.sentiment_ml_score = df.sentiment_ml_score.astype('float')
 
     # to Motherduck
     md.sql(f'DROP TABLE IF EXISTS {table_new}')

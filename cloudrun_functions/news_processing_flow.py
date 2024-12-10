@@ -34,6 +34,13 @@ def summarize_news(payload):
     # print(f"Response from summarize_news: {resp}")  # Debug log
     return resp
 
+@task(retries=2)
+def news_final(payload):
+    """Make a new table with the final news articles"""
+    url = "https://us-central1-ba882-435919.cloudfunctions.net/news_final"
+    resp = invoke_gcf(url, payload=payload)
+    return resp
+
 
 @flow(name="news-processing-flow", log_prints=True)
 def news_processing_flow():
@@ -49,6 +56,11 @@ def news_processing_flow():
     summarized_data = summarize_news(scraped_data)
     print("News has been summarized successfully!")
     print(f"{summarized_data}")
+
+    # Step 3 
+    news = news_final(summarized_data)
+    print("New table created successfully")
+    print(f"{news}")
 
 if __name__ == "__main__":
     news_processing_flow()

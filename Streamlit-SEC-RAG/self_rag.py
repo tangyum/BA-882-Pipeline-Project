@@ -43,8 +43,22 @@ retrieval_grader = grade_prompt | structured_llm_grader
 from langchain import hub
 from langchain_core.output_parsers import StrOutputParser
 
+from langchain_core.prompts.chat import MessagesPlaceholder
 # Prompt
-prompt = hub.pull("rlm/rag-prompt")
+system = """Answer the users QUESTION using the DOCUMENTS text below.
+                Keep your answer ground in the facts of the DOCUMENTS.
+                If the DOCUMENT doesn’t contain the facts to answer the QUESTION return {NONE}
+                Use ONLY markdown styling to form your answers. Ensure the markdown is valid.
+                Do not use LATEX. Add citations to your answers."""
+
+query_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", system),
+        ("human", "Retrieved documents: \n\n {documents} \n\n User question: {question}"),
+            ] # MessagesPlaceholder(variable_name="NONE"),
+
+)
+
 
 # LLM
 llm = ChatOpenAI(model_name=model_name, temperature=0)
@@ -56,7 +70,7 @@ def format_docs(docs):
 
 
 # Chain
-rag_chain = prompt | llm | StrOutputParser()
+rag_chain = query_prompt | llm | StrOutputParser()
 
 ### Hallucination Grader
 
@@ -203,7 +217,7 @@ def generate(state):
     results = state['results']
 
     # RAG generation
-    generation = rag_chain.invoke({"context": documents, "question": question})
+    generation = rag_chain.invoke({"documents": documents, "question": question, 'NONE':' '})
     return {"documents": documents, "question": question, "generation": generation, 'results':results}
 
 

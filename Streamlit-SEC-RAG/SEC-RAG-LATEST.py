@@ -71,6 +71,9 @@ if 'answer' not in st.session_state:
     st.session_state.answer = None
 if 'table_contents' not in st.session_state:
     st.session_state.table_contents = {}
+if 'tquestion' not in st.session_state:
+    st.session_state.tquestion = None
+
 
 # Streamlit UI
 st.image("https://www.sec.gov/themes/custom/uswds_sec/dist/img/logos/sec-logo-1x.png")
@@ -89,6 +92,8 @@ if search_button and search_query.strip():
         st.session_state.answer = answer
         st.session_state.results = results
         st.session_state.query_run = True
+        st.session_state.tquestion = transformed_question
+
 
         # Populate table_contents
         st.session_state.table_contents = {
@@ -99,10 +104,10 @@ if search_button and search_query.strip():
 # Display results
 if st.session_state.query_run:
     st.subheader("Transformed Question:")
-    st.markdown(f'### {transformed_question}')
+    st.markdown(f'### {st.session_state.tquestion}')
 
     st.subheader("Answer:")
-    st.markdown(f'### {st.session_state.answer}')
+    st.write({st.session_state.answer})
 
     # Table selection
     table_options = list(st.session_state.table_contents.keys())

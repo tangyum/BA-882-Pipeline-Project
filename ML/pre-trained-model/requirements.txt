@@ -1,0 +1,9 @@
+functions-framework==3.*
+pandas
+numpy==1.23.5
+gcsfs
+joblib
+google-cloud-storage
+google-cloud-aiplatform
+transformers==4.32.0
+torch==2.0.1

@@ -1,13 +1,13 @@
-
 # imports
-import streamlit as st 
+import streamlit as st
 import re
 import pandas as pd
 
 from google.cloud import secretmanager
 from pinecone import Pinecone
 from openai import OpenAI
-import os 
+import os
+
 
 # setup
 project_id = 'ba882-435919'
@@ -39,117 +39,87 @@ index = pc.Index(vector_index)
 os.environ['OPENAI_API_KEY'] = openai_token
 client = OpenAI()
 
+# Import self_rag code
+exec(open("self_rag.py").read())
+
 def get_embedding(text, model="text-embedding-3-large"):
   #  text = text.replace("\n", " ")
   return client.embeddings.create(input = [text], model=model).data[0].embedding
 
-def get_response(query, retrieved, model='gpt-4o'):
+def get_response(query):
   # our RAG Pipeline
+  inputs = {'question':query}
+  logs = []
+  for output in app.stream(inputs):
+      for key, value in output.items():
+          # Node
+          logs.append(f"Node '{key}':")
+          # Optional: print full state at each node
+          # pprint.pprint(value["keys"], indent=2, width=80, depth=None)
+      logs.append("\n---\n")
 
-  response = client.chat.completions.create(
-    model=model,
-    messages=[
-        {"role": "system", "content": """Answer the users QUESTION using the DOCUMENTS text below.
-                Keep your answer ground in the facts of the DOCUMENTS.
-                If the DOCUMENT doesn’t contain the facts to answer the QUESTION return {NONE}"""},
-        {"role": "user", "content": f"QUESTION:{query}\n DOCUMENTS{retrieved}"}
-    ]
-)
-  
-  return response
-
+  return value["generation"], value['documents'], value['results'], value['question'], logs
 
 
 
-############################################## streamlit setup
+# Initialize session state
+if 'query_run' not in st.session_state:
+    st.session_state.query_run = False
+if 'results' not in st.session_state:
+    st.session_state.results = None
+if 'answer' not in st.session_state:
+    st.session_state.answer = None
+if 'table_contents' not in st.session_state:
+    st.session_state.table_contents = {}
+if 'tquestion' not in st.session_state:
+    st.session_state.tquestion = None
 
 
-st.image("https://www.sec.gov/themes/custom/uswds_sec/dist/img/logos/sec-logo-1x.png") # https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS9UovrZvGw3LwsIo3lQ2b-CaPDTVnjbP29Mw&s
+# Streamlit UI
+st.image("https://www.sec.gov/themes/custom/uswds_sec/dist/img/logos/sec-logo-1x.png")
 st.title("SEC RAG - Intelligently Query Financial Statements!")
 
-
-################### sidebar
-
-st.sidebar.title("Query SEC Filings in our Database") # add dynamic no. of files in DB
-
+# Sidebar
+st.sidebar.title("Query SEC Filings in our Database")
 search_query = st.sidebar.text_area("Input query here")
-
-top_k = st.sidebar.slider("Top K", 1, 15, step=1, value=5)
-
+top_k = st.sidebar.slider("Top K", 1, 50, step=1, value=10)
 search_button = st.sidebar.button("Run the RAG pipeline")
 
-
-################### main
-
-# Main action: Handle search
-if search_button:
-    if search_query.strip():
-      with st.spinner('Processing your query...'):
-        # Get embedding
-        embedding = get_embedding(search_query)
-
-        # search pincone
-        results = index.query(
-            vector=embedding,
-            top_k=top_k,
-            include_metadata=True
-        )
-
-        # answer the question
-        chunks = [r.metadata['header']  + r.metadata['markdown_raw'] for r in results.matches]
-        print(results)
-        context = "\n".join(chunks)
+# Main query processing
+if search_button and search_query.strip():
+    with st.spinner("Processing your query..."):
+        answer, tables, results, transformed_question, logs = get_response(search_query)
+        st.session_state.answer = answer
+        st.session_state.results = results
+        st.session_state.query_run = True
+        st.session_state.tquestion = transformed_question
 
 
-        response = get_response(search_query, context)
-        answer = response.choices[0].message.content
-        # Display the results
-        st.subheader("Answer:")
-        st.markdown(answer)
+        # Populate table_contents
+        st.session_state.table_contents = {
+            f"{r.metadata['source_file']} - {r.metadata['source_sheet']}": r.metadata['markdown_raw']
+            for r in results.matches
+        }
 
-        # # return the full document from just the first entry - 
-        # top_table = f"{results.matches[0]['metadata']['source_file']} - {results.matches[0]['metadata']['source_sheet']}" 
-        # table_md = results.matches[0]['metadata']['markdown_raw']
-        # st.markdown(f'### {top_table}')
+# Display results
+if st.session_state.query_run:
+    st.subheader("Transformed Question:")
+    st.markdown(f'### {st.session_state.tquestion}')
 
-        # Collect all unique tables
-        unique_tables = set()
-        table_contents = {}
+    st.subheader("Answer:")
+    st.write({st.session_state.answer})
 
-        for result in results.matches:
-            source_key = f"{result.metadata['source_file']} - {result.metadata['source_sheet']}"
-            unique_tables.add(source_key)
-            table_contents[source_key] = result.metadata['markdown_raw']
+    # Table selection
+    table_options = list(st.session_state.table_contents.keys())
+    selected_table = st.selectbox("Select a table to view:", table_options)
 
-        # Create table selection dropdown
-        selected_table = st.selectbox(
-            "Select a table to view:", 
-            list(unique_tables)
-        )
-
-        # Display selected table's markdown
-        if selected_table:
-            st.empty()  # Clear previous content
-            st.markdown(f"### {selected_table}")
-            st.markdown(table_contents[selected_table])
-
-        # # Optional: Add table search functionality
-        # search_table = st.text_input("Search within tables")
-        # if search_table:
-        #     filtered_tables = [
-        #         table for table in unique_tables 
-        #         if search_table.lower() in table.lower()
-        #     ]
-        #     if filtered_tables:
-        #         selected_table = st.selectbox(
-        #             "Filtered Tables:", 
-        #             filtered_tables
-        #         )
-        #         st.markdown(table_contents[selected_table])
+    if selected_table:
+        st.subheader(f"Selected Table: {selected_table}")
+        st.markdown(st.session_state.table_contents[selected_table])
+    # st.subheader('Execution Logs')
+    # log = '\n'.join(logs)
+    # st.markdown(log)
 
 
-
-
-    else:
-        st.warning("Please enter a search query!")
-
+else:
+    st.info("Run a query to see results.")

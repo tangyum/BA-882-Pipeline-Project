@@ -1,0 +1,8 @@
+functions-framework==3.*
+pandas
+google-cloud-storage
+google-cloud-secret-manager
+duckdb==1.1.0
+gcsfs
+openai
+pinecone

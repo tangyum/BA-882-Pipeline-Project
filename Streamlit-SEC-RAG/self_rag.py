@@ -20,7 +20,8 @@ class GradeDocuments(BaseModel):
         description="Documents are relevant to the question, 'yes' or 'no'"
     )
 
-llm = ChatOpenAI(model="gpt-4o", temperature=0)
+model_name = 'gpt-4o-mini'
+llm = ChatOpenAI(model=model_name, temperature=0)
 structured_llm_grader = llm.with_structured_output(GradeDocuments)
 
 # Prompt
@@ -46,7 +47,7 @@ from langchain_core.output_parsers import StrOutputParser
 prompt = hub.pull("rlm/rag-prompt")
 
 # LLM
-llm = ChatOpenAI(model_name="gpt-4o", temperature=0)
+llm = ChatOpenAI(model_name=model_name, temperature=0)
 
 
 # Post-processing
@@ -70,7 +71,7 @@ class GradeHallucinations(BaseModel):
 
 
 # LLM with function call
-llm = ChatOpenAI(model_name="gpt-4o", temperature=0)
+llm = ChatOpenAI(model_name=model_name, temperature=0)
 structured_llm_grader = llm.with_structured_output(GradeHallucinations)
 
 # Prompt
@@ -98,7 +99,7 @@ class GradeAnswer(BaseModel):
 
 
 # LLM with function call
-llm = ChatOpenAI(model_name="gpt-4o", temperature=0)
+llm = ChatOpenAI(model_name=model_name, temperature=0)
 structured_llm_grader = llm.with_structured_output(GradeAnswer)
 
 # Prompt
@@ -115,7 +116,7 @@ answer_grader = answer_prompt | structured_llm_grader
 ### Question Re-writer
 
 # LLM
-llm = ChatOpenAI(model_name="gpt-4o", temperature=0)
+llm = ChatOpenAI(model_name=model_name, temperature=0)
 
 # Prompt
 system = """You a question re-writer that converts an input question to a better version that is optimized \n
@@ -150,6 +151,7 @@ class GraphState(TypedDict):
     question: str
     generation: str
     documents: List[str]
+    results: List[dict]
 
 
 ### Nodes
@@ -179,7 +181,7 @@ def retrieve(state):
     docs = [f"{r.metadata['header']}\n{r.metadata['markdown_raw']}" for r in results.matches]
 
 
-    return {"documents": docs, "question": question}
+    return {"documents": docs, "question": question, "results":results}
 
 
 def generate(state):
@@ -195,10 +197,11 @@ def generate(state):
     print("---GENERATE---")
     question = state["question"]
     documents = state["documents"]
+    results = state['results']
 
     # RAG generation
     generation = rag_chain.invoke({"context": documents, "question": question})
-    return {"documents": documents, "question": question, "generation": generation}
+    return {"documents": documents, "question": question, "generation": generation, 'results':results}
 
 
 def grade_documents(state):
@@ -215,6 +218,8 @@ def grade_documents(state):
     print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
     question = state["question"]
     documents = state["documents"]
+    results = state["results"]
+
 
     # Score each doc
     filtered_docs = []
@@ -229,7 +234,7 @@ def grade_documents(state):
         else:
             print("---GRADE: DOCUMENT NOT RELEVANT---")
             continue
-    return {"documents": filtered_docs, "question": question}
+    return {"documents": filtered_docs, "question": question, 'results':results}
 
 
 def transform_query(state):
@@ -265,22 +270,23 @@ def decide_to_generate(state):
     Returns:
         str: Binary decision for next node to call
     """
+    return 'generate'
+    # print("---ASSESS GRADED DOCUMENTS---")
+    # state["question"]
+    # filtered_documents = state["documents"]
 
-    print("---ASSESS GRADED DOCUMENTS---")
-    state["question"]
-    filtered_documents = state["documents"]
+    # if not filtered_documents:
+    #     # All documents have been filtered check_relevance
+    #     # We will re-generate a new query
+    #     print(
+    #         "---DECISION: ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, TRANSFORM QUERY---"
+    #     )
+    #     return "transform_query"
+    # else:
+    #     # We have relevant documents, so generate answer
+    #     print("---DECISION: GENERATE---")
+    #     return "generate"
 
-    if not filtered_documents:
-        # All documents have been filtered check_relevance
-        # We will re-generate a new query
-        print(
-            "---DECISION: ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, TRANSFORM QUERY---"
-        )
-        return "transform_query"
-    else:
-        # We have relevant documents, so generate answer
-        print("---DECISION: GENERATE---")
-        return "generate"
 
 
 def grade_generation_v_documents_and_question(state):
@@ -294,32 +300,34 @@ def grade_generation_v_documents_and_question(state):
         str: Decision for next node to call
     """
 
-    print("---CHECK HALLUCINATIONS---")
-    question = state["question"]
-    documents = state["documents"]
-    generation = state["generation"]
+    # print("---CHECK HALLUCINATIONS---")
+    # question = state["question"]
+    # documents = state["documents"]
+    # generation = state["generation"]
 
-    score = hallucination_grader.invoke(
-        {"documents": documents, "generation": generation}
-    )
-    grade = score.binary_score
+    # score = hallucination_grader.invoke(
+    #     {"documents": documents, "generation": generation}
+    # )
+    # grade = score.binary_score
 
-    # Check hallucination
-    if grade == "yes":
-        print("---DECISION: GENERATION IS GROUNDED IN DOCUMENTS---")
-        # Check question-answering
-        print("---GRADE GENERATION vs QUESTION---")
-        score = answer_grader.invoke({"question": question, "generation": generation})
-        grade = score.binary_score
-        if grade == "yes":
-            print("---DECISION: GENERATION ADDRESSES QUESTION---")
-            return "useful"
-        else:
-            print("---DECISION: GENERATION DOES NOT ADDRESS QUESTION---")
-            return "not useful"
-    else:
-        pprint("---DECISION: GENERATION IS NOT GROUNDED IN DOCUMENTS, RE-TRY---")
-        return "not supported"
+    return 'useful'
+
+    # # Check hallucination
+    # if grade == "yes":
+    #     print("---DECISION: GENERATION IS GROUNDED IN DOCUMENTS---")
+    #     # Check question-answering
+    #     print("---GRADE GENERATION vs QUESTION---")
+    #     score = answer_grader.invoke({"question": question, "generation": generation})
+    #     grade = score.binary_score
+    #     if grade == "yes":
+    #         print("---DECISION: GENERATION ADDRESSES QUESTION---")
+    #         return "useful"
+    #     else:
+    #         print("---DECISION: GENERATION DOES NOT ADDRESS QUESTION---")
+    #         return "not useful"
+    # else:
+    #     pprint("---DECISION: GENERATION IS NOT GROUNDED IN DOCUMENTS, RE-TRY---")
+    #     return "not supported"
 
 from langgraph.graph import END, StateGraph, START
 
@@ -328,8 +336,8 @@ workflow = StateGraph(GraphState)
 # Define the nodes
 workflow.add_node("retrieve", retrieve)  # retrieve
 workflow.add_node("grade_documents", grade_documents)  # grade documents
-workflow.add_node("generate", generate)  # generatae
 workflow.add_node("transform_query", transform_query)  # transform_query
+workflow.add_node("generate", generate)  # generatae
 
 # Build graph
 workflow.add_edge(START, "retrieve")

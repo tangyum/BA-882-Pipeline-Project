@@ -6,8 +6,7 @@ google-cloud-aiplatform
 google-cloud-secret-manager
 networkx
 matplotlib
+openai
 langchain
-langchain_openai
-openai==1.55.3
-httpx==0.27.2
+langchain-openai
 langgraph

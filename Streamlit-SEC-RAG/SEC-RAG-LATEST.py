@@ -1,5 +1,3 @@
-%%writefile SEC-RAG-LATEST.py
-
 # imports
 import streamlit as st
 import re

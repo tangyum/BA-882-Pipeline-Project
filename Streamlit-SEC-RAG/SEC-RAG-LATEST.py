@@ -1,3 +1,4 @@
+%%writefile SEC-RAG-LATEST.py
 
 # imports
 import streamlit as st
@@ -59,7 +60,7 @@ def get_response(query):
           # pprint.pprint(value["keys"], indent=2, width=80, depth=None)
       logs.append("\n---\n")
 
-  return value["generation"], value['documents'], value['results'], logs
+  return value["generation"], value['documents'], value['results'], value['question'], logs
 
 
 
@@ -86,7 +87,7 @@ search_button = st.sidebar.button("Run the RAG pipeline")
 # Main query processing
 if search_button and search_query.strip():
     with st.spinner("Processing your query..."):
-        answer, tables, results, logs = get_response(search_query)
+        answer, tables, results, transformed_question, logs = get_response(search_query)
         st.session_state.answer = answer
         st.session_state.results = results
         st.session_state.query_run = True
@@ -99,6 +100,9 @@ if search_button and search_query.strip():
 
 # Display results
 if st.session_state.query_run:
+    st.subheader("Transformed Question:")
+    st.markdown(f'### {transformed_question}')
+
     st.subheader("Answer:")
     st.markdown(f'### {st.session_state.answer}')
 

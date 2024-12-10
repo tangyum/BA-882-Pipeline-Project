@@ -133,6 +133,9 @@ re_write_prompt = ChatPromptTemplate.from_messages(
 
 question_rewriter = re_write_prompt | llm | StrOutputParser()
 
+
+
+
 from typing import List
 
 from typing_extensions import TypedDict
@@ -237,6 +240,25 @@ def grade_documents(state):
     return {"documents": filtered_docs, "question": question, 'results':results}
 
 
+def transform_query_naive(state):
+    """
+    Transform the query to produce a better question.
+
+    Args:
+        state (dict): The current graph state
+
+    Returns:
+        state (dict): Updates question key with a re-phrased question
+    """
+
+    print("---TRANSFORM QUERY---")
+    question = state["question"]
+
+    # Re-write question
+    better_question = question_rewriter.invoke({"question": question})
+    return {"question": better_question}
+
+
 def transform_query(state):
     """
     Transform the query to produce a better question.
@@ -255,6 +277,7 @@ def transform_query(state):
     # Re-write question
     better_question = question_rewriter.invoke({"question": question})
     return {"documents": documents, "question": better_question}
+
 
 
 ### Edges
@@ -338,9 +361,12 @@ workflow.add_node("retrieve", retrieve)  # retrieve
 workflow.add_node("grade_documents", grade_documents)  # grade documents
 workflow.add_node("transform_query", transform_query)  # transform_query
 workflow.add_node("generate", generate)  # generatae
+workflow.add_node("transform_query_naive", transform_query_naive)  # transform_query
+
 
 # Build graph
-workflow.add_edge(START, "retrieve")
+workflow.add_edge(START, "transform_query_naive")
+workflow.add_edge("transform_query_naive", 'retrieve')
 workflow.add_edge("retrieve", "grade_documents")
 workflow.add_conditional_edges(
     "grade_documents",

@@ -1,0 +1,1 @@
+Cloud Run App - https://streamlit-rag-app-498941009507.us-central1.run.app/

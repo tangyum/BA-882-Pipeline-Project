@@ -33,15 +33,23 @@ def staging(payload):
     resp = invoke_gcf(url, payload=payload)
     return resp
 
+
 @task(retries=2)
-def fetch_motherduck_info(payload):
-    """Load the tables into the raw schema, ingest new records into stage tables"""
-    url = "https://us-central1-ba882-435919.cloudfunctions.net/fetch_motherduck_info"
+def scrape_news(payload):
+    """Process the RSS feed JSON into parquet on GCS"""
+    url = "https://us-central1-ba882-435919.cloudfunctions.net/scrape_news"
     resp = invoke_gcf(url, payload=payload)
     return resp
 
+# @task(retries=2)
+# def fetch_motherduck_info(payload):
+#     """Load the tables into the raw schema, ingest new records into stage tables"""
+#     url = "https://us-central1-ba882-435919.cloudfunctions.net/fetch_motherduck_info"
+#     resp = invoke_gcf(url, payload=payload)
+#     return resp
+
 # Prefect Flow
-@flow(name="aws-blogs-etl-flow", log_prints=True)
+@flow(name="882-project-flow", log_prints=True)
 def etl_flow():
     """The ETL flow which orchestrates Cloud Functions"""
 
@@ -56,8 +64,14 @@ def etl_flow():
     print("The parsing of the feeds into tables completed")
     print(f"{transform_result}")
 
-    result = fetch_motherduck_info(transform_result)
-    print("The data were loaded into the raw schema and changes added to stage")
+    scrape = scrape_news(transform_result)
+    print("The news articles have been scraped")
+    print(f"{scrape}")
+
+
+
+    # result = fetch_motherduck_info(transform_result)
+    # print("The data were loaded into the raw schema and changes added to stage")
 
 
 # the job
